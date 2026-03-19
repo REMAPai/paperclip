@@ -7,24 +7,24 @@ RUN corepack enable
 FROM base AS deps
 WORKDIR /app
 
-# Copy workspace configuration and lockfile
+# 1. Copy the root workspace files
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 
-# Copy all package.json files to allow pnpm to fetch all dependencies 
-# This ensures internal packages like plugin-sdk are recognized
-COPY cli/package.json cli/
-COPY server/package.json server/
-COPY ui/package.json ui/
-# Using a wildcard to catch all internal package manifests
-COPY packages/shared/package.json packages/shared/
-COPY packages/db/package.json packages/db/
-COPY packages/adapter-utils/package.json packages/adapter-utils/
-COPY packages/plugin-sdk/package.json packages/plugin-sdk/
-COPY packages/types/package.json packages/types/
-COPY packages/adapters// packages/adapters/
+# 2. Copy the package.json from EVERY directory at once
+# This handles server, ui, cli, and everything inside /packages automatically
+COPY **/package.json ./
+# Note: Because of how Docker COPY works with wildcards, we need to ensure 
+# the directory structure is preserved for pnpm to link them.
+# If the above fails, we use this more explicit but flexible approach:
+COPY cli/package.json ./cli/
+COPY server/package.json ./server/
+COPY ui/package.json ./ui/
+COPY packages/ ./packages/
 
-# Filter out only package.json files if the above COPY was too broad, 
-# but pnpm install needs the manifests to link the workspace.
+# We delete everything in packages EXCEPT the package.json files 
+# to keep the install cache slim (Optional, but good practice)
+RUN find packages -type f -not -name 'package.json' -delete
+
 RUN pnpm install --frozen-lockfile
 
 FROM base AS build
@@ -32,23 +32,16 @@ WORKDIR /app
 COPY --from=deps /app /app
 COPY . .
 
-# 1. Build the server AND all its local workspace dependencies (like the SDK)
-# The "..." tells pnpm to build the target plus its internal dependency tree.
+# Build with internal dependency awareness
 RUN pnpm --filter @paperclipai/server... build
-
-# 2. Build the UI
 RUN pnpm --filter @paperclipai/ui build
 
-# Verify build output
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 
 FROM base AS production
 WORKDIR /app
-
-# Copy only the necessary files for production
 COPY --chown=node:node --from=build /app /app
 
-# Install global CLI tools required by the app
 RUN npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai \
   && mkdir -p /paperclip \
   && chown node:node /paperclip
@@ -68,6 +61,4 @@ VOLUME ["/paperclip"]
 EXPOSE 3100
 
 USER node
-
-# We use tsx loader because the app likely uses ESM/TS features in production
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
