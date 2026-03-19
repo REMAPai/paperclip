@@ -25,7 +25,7 @@ COPY packages/ ./packages/
 # to keep the install cache slim (Optional, but good practice)
 RUN find packages -type f -not -name 'package.json' -delete
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --no-frozen-lockfile
 
 FROM base AS build
 WORKDIR /app
