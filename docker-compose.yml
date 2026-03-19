@@ -1,37 +1,49 @@
 services:
   db:
     image: postgres:17-alpine
+    container_name: ghostcorp-db
     environment:
       POSTGRES_USER: paperclip
       POSTGRES_PASSWORD: paperclip
       POSTGRES_DB: paperclip
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U paperclip -d paperclip"]
-      interval: 2s
+      interval: 5s
       timeout: 5s
-      retries: 30
+      retries: 5
     ports:
-      - "5433:5432"
+      - "5433:5432" # External access via 5433, internal still 5432
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - paperclip-network
 
   server:
     build: .
+    container_name: ghostcorp-server
     ports:
       - "3100:3100"
     environment:
+      # Use the service name 'db' and internal port 5432
       DATABASE_URL: postgres://paperclip:paperclip@db:5432/paperclip
       PORT: "3100"
       SERVE_UI: "true"
       PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
       PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
-      PAPERCLIP_PUBLIC_URL: "${PAPERCLIP_PUBLIC_URL:-http://localhost:3100}"
+      # IMPORTANT: Update this to your real domain
+      PAPERCLIP_PUBLIC_URL: "http://ghostcorp.remap.ai"
       BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}"
     volumes:
       - paperclip-data:/paperclip
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - paperclip-network
+
+networks:
+  paperclip-network:
+    driver: bridge
 
 volumes:
   pgdata:
