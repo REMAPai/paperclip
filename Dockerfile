@@ -10,6 +10,9 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY cli/package.json cli/
 COPY server/package.json server/
 COPY ui/package.json ui/
+COPY packages/ ./packages/
+# Find and copy all package.jsons in subdirectories (Alternative to manual list)
+RUN find packages -name "package.json" -maxdepth 2
 COPY packages/shared/package.json packages/shared/
 COPY packages/db/package.json packages/db/
 COPY packages/adapter-utils/package.json packages/adapter-utils/
@@ -21,14 +24,21 @@ COPY packages/adapters/openclaw-gateway/package.json packages/adapters/openclaw-
 COPY packages/adapters/opencode-local/package.json packages/adapters/opencode-local/
 COPY packages/adapters/pi-local/package.json packages/adapters/pi-local/
 
+COPY packages/plugin-sdk/package.json packages/plugin-sdk/
+COPY packages/types/package.json packages/types/
+
 RUN pnpm install --frozen-lockfile
 
 FROM base AS build
 WORKDIR /app
 COPY --from=deps /app /app
 COPY . .
+#RUN pnpm --filter @paperclipai/ui build (replaced)
+#RUN pnpm --filter @paperclipai/server build (replaced)
+# This builds the server AND all its local workspace dependencies (like the SDK) 
+# in the correct order, followed by the UI.
+RUN pnpm --filter @paperclipai/server... build
 RUN pnpm --filter @paperclipai/ui build
-RUN pnpm --filter @paperclipai/server build
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 
 FROM base AS production
