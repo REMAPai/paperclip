@@ -31,7 +31,7 @@ services:
       PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
       PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
       # IMPORTANT: Update this to your real domain
-      PAPERCLIP_PUBLIC_URL: "http://ghostcorp.remap.ai"
+      PAPERCLIP_PUBLIC_URL: "http://nicole.paperclip.useprivate.ai"
       BETTER_AUTH_SECRET: "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}"
     volumes:
       - paperclip-data:/paperclip
